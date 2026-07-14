@@ -1,0 +1,21 @@
+Bilidown portable builds are pinned to the BtbN LGPL Windows build generated
+from FFmpeg commit 150f7d15df on 2026-07-14.
+
+Upstream FFmpeg source commit:
+https://github.com/FFmpeg/FFmpeg/commit/150f7d15df
+
+Build project and configuration:
+https://github.com/BtbN/FFmpeg-Builds
+
+Verified Windows binary archive:
+https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-14-13-19/ffmpeg-N-125608-g150f7d15df-win64-lgpl.zip
+SHA256: 7a1f6d1d8acd98c3f04529700281f5302c1be5df725d6cab34322fd2a4411bad
+
+The bundled ffmpeg.exe and ffprobe.exe are unmodified copies from that archive.
+BUILD_INFO.txt and the archive's license files are included in the portable
+distribution.
+
+macOS portable builds compile FFmpeg 8.1.2 and LAME 3.100 from their verified
+source archives. The exact source URLs, SHA-256 values, configure arguments,
+target architecture, and deployment target are recorded in BUILD_INFO.txt by
+packaging/prepare-ffmpeg-macos.sh. Release assets include those source archives.

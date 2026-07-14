@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bilidown-local"
+version = "0.1.0"
+description = "Local-only Bilibili UGC downloader"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = {text = "MIT"}
+dependencies = [
+  "fastapi==0.116.1",
+  "httpx==0.28.1",
+  "python-multipart==0.0.20",
+  "uvicorn[standard]==0.35.0",
+  "yt-dlp==2026.7.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pyinstaller==6.14.2",
+  "pytest==8.4.1",
+  "pytest-asyncio==1.0.0",
+]
+
+[project.scripts]
+bilidown = "bilidown.launcher:main"
+
+[tool.setuptools]
+package-dir = {"" = "backend"}
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,18 @@
+Bilidown uses yt-dlp, which is distributed under The Unlicense. See:
+https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE
+
+This software uses code of FFmpeg licensed under the LGPLv2.1 or later, or the
+GPLv2 or later when the selected FFmpeg build enables GPL components. See:
+https://ffmpeg.org/legal.html
+
+The Windows portable build keeps the verified BtbN FFmpeg files as separate,
+unmodified executables. The macOS portable builds compile separate FFmpeg and
+ffprobe executables from FFmpeg 8.1.2 with LAME 3.100 enabled for MP3 output.
+LAME is distributed under the LGPL; its source is available from:
+https://sourceforge.net/projects/lame/files/lame/3.100/
+
+Each build records its source, architecture, configuration, and checksums in
+FFMPEG_SOURCE.txt and BUILD_INFO.txt. GitHub Releases also include the exact
+source archives used by the portable builds. Anyone redistributing a portable
+build remains responsible for carrying forward the licenses, notices, build
+information, and corresponding-source offer.
