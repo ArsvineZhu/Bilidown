@@ -8,6 +8,7 @@ interface AuthPanelProps {
   authStatus: AuthStatus | null;
   checking: boolean;
   checkError: string | null;
+  autoSelected: boolean;
   onRefresh: () => void;
   onChange: (auth: AuthConfig) => void;
   disabled?: boolean;
@@ -19,6 +20,7 @@ export function AuthPanel({
   authStatus,
   checking,
   checkError,
+  autoSelected,
   onRefresh,
   onChange,
   disabled = false,
@@ -127,7 +129,7 @@ export function AuthPanel({
       <div className={`auth-status-card ${statusTone}`} aria-live="polite">
         <span className="auth-status-indicator" aria-hidden="true" />
         <div>
-          <strong>{sourceLabel}</strong>
+          <strong>{sourceLabel}{autoSelected ? " · 自动选择" : ""}</strong>
           <p>{statusText}</p>
         </div>
         <button

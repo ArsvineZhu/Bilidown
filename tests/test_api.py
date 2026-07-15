@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from bilidown.app import create_app
-from bilidown.models import AuthStatus
+from bilidown.models import AuthStatus, AutoAuthResult, BrowserAuth
 
 
 TOKEN = "test-token"
@@ -93,3 +93,44 @@ def test_auth_status_endpoint_returns_safe_account_summary(tmp_path: Path) -> No
         "vip_label": "年度大会员",
     }
     assert "SESSDATA" not in response.text
+
+
+def test_auto_auth_endpoint_returns_selected_browser_without_cookie_data(tmp_path: Path) -> None:
+    app = create_app(session_token=TOKEN, expected_origin=ORIGIN, static_dir=tmp_path / "missing")
+    app.state.engine.auto_auth = lambda: AutoAuthResult(
+        auth=BrowserAuth(browser="edge"),
+        status=AuthStatus(state="active", username="测试用户", vip_active=True, vip_label="年度大会员"),
+    )
+
+    with TestClient(app) as client:
+        response = client.post("/api/auth/auto", headers=HEADERS)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "auth": {"kind": "browser", "browser": "edge", "profile": None},
+        "status": {
+            "state": "active",
+            "username": "测试用户",
+            "vip_active": True,
+            "vip_label": "年度大会员",
+        },
+    }
+    assert "SESSDATA" not in response.text
+
+
+def test_quit_endpoint_is_protected_and_invokes_shutdown_callback(tmp_path: Path) -> None:
+    shutdown_calls: list[None] = []
+    app = create_app(
+        session_token=TOKEN,
+        expected_origin=ORIGIN,
+        static_dir=tmp_path / "missing",
+        shutdown_callback=lambda: shutdown_calls.append(None),
+    )
+
+    with TestClient(app) as client:
+        rejected = client.post("/api/quit")
+        accepted = client.post("/api/quit", headers=HEADERS)
+
+    assert rejected.status_code == 401
+    assert accepted.status_code == 204
+    assert shutdown_calls == [None]

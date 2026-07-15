@@ -7,11 +7,12 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from collections.abc import Callable
 from typing import AsyncIterator
 
 import httpx
 import yt_dlp.version
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -23,6 +24,7 @@ from .input_parser import InvalidCredential, normalize_credential
 from .jobs import JobManager
 from .models import (
     AppStatus,
+    AutoAuthResult,
     AuthStatus,
     AuthStatusRequest,
     CreateJobRequest,
@@ -54,7 +56,13 @@ def open_output_directory(path: Path) -> None:
     raise NotImplementedError("当前平台暂不支持打开目录")
 
 
-def create_app(*, session_token: str, expected_origin: str, static_dir: Path | None = None) -> FastAPI:
+def create_app(
+    *,
+    session_token: str,
+    expected_origin: str,
+    static_dir: Path | None = None,
+    shutdown_callback: Callable[[], None] | None = None,
+) -> FastAPI:
     cookies = CookieStore()
     engine = DownloaderEngine(cookies)
     jobs = JobManager(engine)
@@ -117,6 +125,10 @@ def create_app(*, session_token: str, expected_origin: str, static_dir: Path | N
                 status_code=status_code,
                 detail={"code": exc.code, "message": exc.message},
             ) from exc
+
+    @app.post("/api/auth/auto", response_model=AutoAuthResult)
+    async def auto_auth() -> AutoAuthResult:
+        return await asyncio.to_thread(engine.auto_auth)
 
     @app.post("/api/auth/cookie-sessions")
     async def create_cookie_session(file: UploadFile = File(...)) -> dict[str, object]:
@@ -224,6 +236,18 @@ def create_app(*, session_token: str, expected_origin: str, static_dir: Path | N
             raise HTTPException(status_code=501, detail=str(exc)) from exc
         except OSError as exc:
             raise HTTPException(status_code=500, detail="无法调用系统文件管理器") from exc
+        return Response(status_code=204)
+
+    @app.post(
+        "/api/quit",
+        status_code=204,
+        response_class=Response,
+        response_model=None,
+    )
+    async def quit_app(background_tasks: BackgroundTasks) -> Response:
+        if shutdown_callback is None:
+            raise HTTPException(status_code=501, detail="当前运行方式不支持退出")
+        background_tasks.add_task(shutdown_callback)
         return Response(status_code=204)
 
     resolved_static = static_dir if static_dir is not None else frontend_dist()

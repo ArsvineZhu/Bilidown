@@ -4,7 +4,7 @@
 
 ## Level 0：第一次下载
 
-先阅读根目录 [README](../README.md) 的“五分钟开始”。它解释如何从 GitHub Releases 选择 Windows、Apple Silicon 或 Intel 包，以及如何校验 SHA-256。
+先阅读根目录 [README](../README.md) 的“五分钟开始”。它解释如何从 GitHub Releases 选择 Windows 或 Apple Silicon 包，以及如何校验 SHA-256。
 
 ## Level 1：基本使用
 

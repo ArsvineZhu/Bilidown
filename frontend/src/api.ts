@@ -10,6 +10,11 @@ export interface AuthStatus {
   vip_label: string | null;
 }
 
+export interface AutoAuthResult {
+  auth: AuthConfig;
+  status: AuthStatus;
+}
+
 export interface QualityOption {
   id: string;
   label: string;
@@ -142,6 +147,10 @@ export class ApiClient {
     });
   }
 
+  autoSelectAuth(): Promise<AutoAuthResult> {
+    return this.request("/api/auth/auto", { method: "POST" });
+  }
+
   async uploadCookies(file: File): Promise<{ session_id: string; cookie_count: number }> {
     const body = new FormData();
     body.set("file", file);
@@ -170,6 +179,10 @@ export class ApiClient {
 
   openOutput(path: string): Promise<void> {
     return this.request("/api/open-output", { method: "POST", body: JSON.stringify({ path }) });
+  }
+
+  quit(): Promise<void> {
+    return this.request("/api/quit", { method: "POST" });
   }
 
   async streamJob(jobId: string, onUpdate: (job: JobView) => void): Promise<void> {

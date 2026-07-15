@@ -51,6 +51,10 @@ test("resolve and create a video task", async ({ page }) => {
     vip_active: false,
     vip_label: null,
   } }));
+  await page.route("**/api/auth/auto", (route) => route.fulfill({ json: {
+    auth: { kind: "guest" },
+    status: { state: "guest", username: null, vip_active: false, vip_label: null },
+  } }));
   await page.route("**/api/jobs", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: [] });
     return route.fulfill({ status: 201, json: {
@@ -68,9 +72,47 @@ test("resolve and create a video task", async ({ page }) => {
   await page.route("**/api/resolve", (route) => route.fulfill({ json: resolvedVideo }));
 
   await page.goto("/?token=e2e-token");
+  await expect(page.locator(".hero-line")).toHaveCount(2);
   await page.getByLabel("BV 号、AV 号或视频链接").fill("BV1xx411c7mD");
   await page.getByRole("button", { name: "解析视频" }).click();
   await expect(page.getByRole("heading", { name: "端到端测试视频" })).toBeVisible();
   await page.getByRole("button", { name: "下载 1 P 视频" }).click();
   await expect(page.getByText("已完成")).toBeVisible();
+});
+
+test("auto-selects Edge and confirms before exiting active jobs", async ({ page }) => {
+  await page.route("**/api/status", (route) => route.fulfill({ json: {
+    app_version: "0.1.1",
+    yt_dlp_version: "test",
+    ffmpeg_version: "test",
+    ffmpeg_available: true,
+    default_output_dir: "C:\\Downloads\\Bilidown",
+  } }));
+  await page.route("**/api/jobs", (route) => route.fulfill({ json: [{
+    id: "job-1",
+    status: "running",
+    request: { media_kind: "video" },
+    progress: { phase: "downloading", current_page: 1, downloaded_bytes: 1, total_bytes: 2, percent: 50, speed: null, eta: null },
+    result_paths: [],
+    error_code: null,
+    error_message: null,
+    created_at: "2026-07-14T00:00:00Z",
+    updated_at: "2026-07-14T00:00:01Z",
+  }] }));
+  await page.route("**/api/auth/auto", (route) => route.fulfill({ json: {
+    auth: { kind: "browser", browser: "edge" },
+    status: { state: "active", username: "测试用户", vip_active: false, vip_label: null },
+  } }));
+  await page.route("**/api/quit", (route) => route.fulfill({ status: 204 }));
+  await page.route("**/api/jobs/job-1/events", (route) => route.fulfill({ status: 200, body: "" }));
+
+  await page.goto("/?token=e2e-token");
+  await expect(page.getByText("Edge · 自动选择")).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 720 });
+  for (const line of await page.locator(".hero-line").all()) {
+    expect(await line.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "退出 Bilidown" }).click();
+  await expect(page.getByRole("heading", { name: "Bilidown 已退出" })).toBeVisible();
 });

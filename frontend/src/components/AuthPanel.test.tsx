@@ -19,6 +19,7 @@ describe("AuthPanel", () => {
         authStatus={{ state: "active", username: "测试用户", vip_active: true, vip_label: "年度大会员" }}
         checking={false}
         checkError={null}
+        autoSelected={false}
         onRefresh={onRefresh}
         onChange={vi.fn()}
       />,
@@ -38,6 +39,7 @@ describe("AuthPanel", () => {
         authStatus={null}
         checking={false}
         checkError="无法读取浏览器 Cookie"
+        autoSelected={false}
         onRefresh={vi.fn()}
         onChange={vi.fn()}
       />,
@@ -45,5 +47,22 @@ describe("AuthPanel", () => {
 
     expect(screen.getByText("无法读取浏览器 Cookie")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "游客" })).toBeEnabled();
+  });
+
+  it("labels a browser selected automatically", () => {
+    render(
+      <AuthPanel
+        api={api}
+        auth={{ kind: "browser", browser: "edge" }}
+        authStatus={{ state: "active", username: "测试用户", vip_active: false, vip_label: null }}
+        checking={false}
+        checkError={null}
+        autoSelected
+        onRefresh={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Edge · 自动选择")).toBeInTheDocument();
   });
 });

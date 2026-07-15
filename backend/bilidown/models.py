@@ -51,6 +51,11 @@ class AuthStatus(BaseModel):
     vip_label: str | None = None
 
 
+class AutoAuthResult(BaseModel):
+    auth: AuthConfig
+    status: AuthStatus
+
+
 class QualityOption(BaseModel):
     id: str
     label: str

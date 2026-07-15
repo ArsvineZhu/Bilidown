@@ -21,6 +21,8 @@ from .files import ensure_output_directory, move_without_overwrite, sanitize_fil
 from .input_parser import NormalizedCredential
 from .models import (
     AudioFormat,
+    AutoAuthResult,
+    BrowserAuth,
     AuthStatus,
     CreateJobRequest,
     GuestAuth,
@@ -227,6 +229,17 @@ class DownloaderEngine:
             vip_label=vip_label,
         )
 
+    def auto_auth(self) -> AutoAuthResult:
+        for browser in ("edge", "chrome", "firefox"):
+            auth = BrowserAuth(browser=browser)
+            try:
+                status = self.auth_status(auth)
+            except EngineError:
+                continue
+            if status.state == "active":
+                return AutoAuthResult(auth=auth, status=status)
+        return AutoAuthResult(auth=GuestAuth(), status=AuthStatus(state="guest"))
+
     def resolve(self, normalized: NormalizedCredential, auth: Any) -> ResolvedVideo:
         logger = _EngineLogger()
         try:
@@ -238,7 +251,9 @@ class DownloaderEngine:
                     "noplaylist": False,
                 }
                 with yt_dlp.YoutubeDL(options) as ydl:
-                    raw = ydl.extract_info(normalized.canonical_url, download=False)
+                    parsed = urlsplit(normalized.canonical_url)
+                    anthology_url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+                    raw = ydl.extract_info(anthology_url, download=False)
                     info = ydl.sanitize_info(raw)
         except InvalidCookieFile:
             raise

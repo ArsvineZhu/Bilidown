@@ -16,6 +16,7 @@ from bilidown.engine import (
 from bilidown.input_parser import NormalizedCredential
 from bilidown.models import (
     AudioFormat,
+    AuthStatus,
     BrowserAuth,
     CreateJobRequest,
     GuestAuth,
@@ -200,6 +201,41 @@ def test_auth_status_guest_does_not_make_network_request() -> None:
     assert DownloaderEngine(CookieStore()).auth_status(GuestAuth()).state == "guest"
 
 
+def test_auto_auth_prefers_edge_then_falls_back_to_chrome(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = DownloaderEngine(CookieStore())
+    checked: list[str] = []
+
+    def fake_auth_status(auth: BrowserAuth) -> AuthStatus:
+        checked.append(auth.browser)
+        if auth.browser == "edge":
+            return AuthStatus(state="inactive")
+        return AuthStatus(state="active", username="测试用户")
+
+    monkeypatch.setattr(engine, "auth_status", fake_auth_status)
+
+    result = engine.auto_auth()
+
+    assert checked == ["edge", "chrome"]
+    assert result.auth == BrowserAuth(browser="chrome")
+    assert result.status.username == "测试用户"
+
+
+def test_auto_auth_falls_back_to_guest_when_browser_cookies_are_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = DownloaderEngine(CookieStore())
+
+    def fake_auth_status(_: BrowserAuth) -> AuthStatus:
+        raise EngineError("cookie_decryption_failed", "无法读取浏览器 Cookie")
+
+    monkeypatch.setattr(engine, "auth_status", fake_auth_status)
+
+    result = engine.auto_auth()
+
+    assert result.auth == GuestAuth()
+    assert result.status.state == "guest"
+
+
 def test_auth_status_maps_browser_cookie_decryption_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     class FailingYoutubeDL:
         def __init__(self, _: dict[str, object]) -> None:
@@ -284,3 +320,61 @@ def test_download_page_uses_exact_format_variant(
 
     assert captured[0]["format"] == expected_format
     assert captured[0]["merge_output_format"] == expected_container
+
+
+def test_resolve_uses_base_video_url_to_return_all_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_urls: list[str] = []
+    payload = {
+        "id": "BV1xx411c7mD",
+        "title": "测试合集",
+        "uploader": "测试 UP 主",
+        "entries": [
+            {
+                "id": "BV1xx411c7mD_p1",
+                "playlist_index": 1,
+                "title": "第一部分",
+                "duration": 10,
+                "formats": [],
+            },
+            {
+                "id": "BV1xx411c7mD_p2",
+                "playlist_index": 2,
+                "title": "第二部分",
+                "duration": 20,
+                "formats": [],
+            },
+        ],
+    }
+
+    class FakeYoutubeDL:
+        def __init__(self, _: dict[str, object]) -> None:
+            return None
+
+        def __enter__(self) -> "FakeYoutubeDL":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def extract_info(self, url: str, *, download: bool) -> dict[str, object]:
+            assert download is False
+            captured_urls.append(url)
+            return payload
+
+        def sanitize_info(self, info: dict[str, object]) -> dict[str, object]:
+            return info
+
+    monkeypatch.setattr("bilidown.engine.yt_dlp.YoutubeDL", FakeYoutubeDL)
+
+    resolved = DownloaderEngine(CookieStore()).resolve(
+        NormalizedCredential(
+            "https://www.bilibili.com/video/BV1xx411c7mD?p=2",
+            "BV1xx411c7mD",
+            2,
+        ),
+        GuestAuth(),
+    )
+
+    assert captured_urls == ["https://www.bilibili.com/video/BV1xx411c7mD"]
+    assert [page.index for page in resolved.pages] == [1, 2]
+    assert resolved.selected_page == 2

@@ -3,7 +3,7 @@
 ## 系统要求
 
 - Windows 10 22H2 或 Windows 11，x64。
-- macOS 13 Ventura 或更高版本，Apple Silicon 或 Intel。
+- macOS 13 Ventura 或更高版本，Apple Silicon（M 系列芯片）。
 - 约 500 MiB 可用空间，以及保存媒体所需的额外空间。
 
 便携包已包含 Python、前端、yt-dlp、FFmpeg 和 ffprobe，不需要安装 Node.js、Python 或 Homebrew。
@@ -37,4 +37,4 @@
 
 ## 结束应用
 
-关闭浏览器标签页不会终止本地服务。Windows 使用任务管理器结束 `Bilidown.exe`；macOS 使用活动监视器结束 `Bilidown`。退出后内存 Cookie 会话和任务记录立即清除，已下载文件不会删除。
+关闭浏览器标签页不会终止本地服务。使用页面右上角“退出 Bilidown”可正常停止服务；若有未完成任务，确认退出后会取消任务并清理临时文件。退出后内存 Cookie 会话和任务记录立即清除，已下载文件不会删除。

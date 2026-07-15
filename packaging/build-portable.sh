@@ -17,8 +17,8 @@ if [[ ! "$ARTIFACT_VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ ]]; then
   echo "ARTIFACT_VERSION contains unsupported filename characters: $ARTIFACT_VERSION" >&2
   exit 1
 fi
-if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
-  echo "Unsupported macOS architecture: $ARCH" >&2
+if [[ "$ARCH" != "arm64" ]]; then
+  echo "Official macOS builds require Apple Silicon (arm64); found: $ARCH" >&2
   exit 1
 fi
 for binary in ffmpeg ffprobe; do

@@ -79,11 +79,12 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin-left: auto;
   color: var(--muted);
   text-align: right;
   font: 13px/1.5 var(--font-mono);
 }
+.header-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.app-quit { white-space: nowrap; }
 
 .hero {
   display: grid;
@@ -97,14 +98,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .hero h2 {
   max-width: 780px;
   margin: 18px 0 22px;
-  font-size: clamp(44px, 7vw, 82px);
+  font-size: clamp(24px, 7vw, 82px);
   line-height: 0.98;
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.025em;
 }
 
-.hero h2 em { color: var(--pink); font-style: normal; }
+.hero-line { display: block; white-space: nowrap; }
+.hero-line-accent { color: var(--pink); }
 .hero > div > p:last-child { max-width: 650px; color: #b8bec7; font-size: 16px; line-height: 1.75; }
 .hero-number { color: #353b44; font: 700 clamp(32px, 5vw, 64px)/1 var(--font-mono); writing-mode: vertical-rl; }
 
@@ -255,6 +257,7 @@ footer { display: flex; justify-content: space-between; gap: 30px; padding: 24px
   .app-shell { width: min(100% - 24px, 1180px); padding-top: 16px; }
   .app-header { align-items: flex-start; }
   .header-status { display: none; }
+  .header-actions { margin-left: auto; }
   .hero { min-height: auto; padding: 52px 0 36px; }
   .hero h2 { font-size: 42px; }
   .panel { padding: 20px; }

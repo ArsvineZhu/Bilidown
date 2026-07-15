@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiClient, readSessionToken } from "./api";
-import type { AppStatus, AuthConfig, AuthStatus, CreateJobRequest, JobView, QualityOption, ResolvedVideo } from "./api";
+import type { AppStatus, AuthConfig, AuthStatus, AutoAuthResult, CreateJobRequest, JobView, QualityOption, ResolvedVideo } from "./api";
 import { AuthPanel } from "./components/AuthPanel";
 import { DownloadPanel } from "./components/DownloadPanel";
 import { JobList } from "./components/JobList";
@@ -21,7 +21,9 @@ export function App() {
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [auth, setAuth] = useState<AuthConfig>({ kind: "guest" });
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
-  const [authChecking, setAuthChecking] = useState(false);
+  const [authChecking, setAuthChecking] = useState(Boolean(token));
+  const [authInitializing, setAuthInitializing] = useState(Boolean(token));
+  const [autoSelected, setAutoSelected] = useState(false);
   const [authCheckError, setAuthCheckError] = useState<string | null>(null);
   const [authCheckNonce, setAuthCheckNonce] = useState(0);
   const [credential, setCredential] = useState("");
@@ -34,8 +36,10 @@ export function App() {
   const [jobs, setJobs] = useState<JobView[]>([]);
   const [resolving, setResolving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [shuttingDown, setShuttingDown] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const watchedJobs = useRef(new Set<string>());
+  const skipNextAuthCheck = useRef(true);
 
   const watchJob = useCallback((job: JobView) => {
     if (TERMINAL_STATUSES.has(job.status) || watchedJobs.current.has(job.id)) return;
@@ -51,22 +55,42 @@ export function App() {
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
-    Promise.all([api.getStatus(), api.listJobs()])
-      .then(([nextStatus, nextJobs]) => {
+    Promise.all([
+      api.getStatus(),
+      api.listJobs(),
+      api.autoSelectAuth().catch((): AutoAuthResult => ({
+        auth: { kind: "guest" },
+        status: { state: "guest", username: null, vip_active: false, vip_label: null },
+      })),
+    ])
+      .then(([nextStatus, nextJobs, autoAuth]) => {
         if (controller.signal.aborted) return;
         setStatus(nextStatus);
         setOutputDir(nextStatus.default_output_dir);
         setJobs(nextJobs);
         nextJobs.forEach(watchJob);
+        setAuth(autoAuth.auth);
+        setAuthStatus(autoAuth.status);
+        setAutoSelected(autoAuth.auth.kind === "browser" && autoAuth.status.state === "active");
       })
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "应用初始化失败");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setAuthInitializing(false);
+          setAuthChecking(false);
+        }
       });
     return () => controller.abort();
   }, [watchJob]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || authInitializing) return;
+    if (skipNextAuthCheck.current) {
+      skipNextAuthCheck.current = false;
+      return;
+    }
     let cancelled = false;
     setAuthChecking(true);
     setAuthCheckError(null);
@@ -93,7 +117,7 @@ export function App() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [auth, authCheckNonce]);
+  }, [auth, authCheckNonce, authInitializing]);
 
   function handleAuthChange(nextAuth: AuthConfig) {
     if (
@@ -102,7 +126,22 @@ export function App() {
     ) {
       void api.deleteCookieSession(auth.session_id).catch(() => undefined);
     }
+    setAutoSelected(false);
     setAuth(nextAuth);
+  }
+
+  async function handleQuit() {
+    const activeJobs = jobs.filter((job) => job.status === "queued" || job.status === "running");
+    if (activeJobs.length > 0 && !window.confirm(`仍有 ${activeJobs.length} 个任务未完成。退出会取消任务并清理临时文件，是否继续？`)) {
+      return;
+    }
+    setShuttingDown(true);
+    try {
+      await api.quit();
+    } catch (quitError) {
+      setShuttingDown(false);
+      setError(quitError instanceof Error ? quitError.message : "无法退出 Bilidown");
+    }
   }
 
   const commonQualities = useMemo<QualityOption[]>(() => {
@@ -190,6 +229,10 @@ export function App() {
     return <main className="fatal-state"><h1>本地会话已失效</h1><p>请关闭此页面并重新启动 Bilidown。</p></main>;
   }
 
+  if (shuttingDown) {
+    return <main className="fatal-state"><h1>Bilidown 已退出</h1><p>后台服务正在停止。现在可以关闭此页面。</p></main>;
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -198,16 +241,24 @@ export function App() {
           <p className="eyebrow">LOCAL MEDIA TOOL</p>
           <h1>Bilidown</h1>
         </div>
-        <div className="header-status">
-          <span>仅监听 127.0.0.1</span>
-          {status && <span>v{status.app_version} · yt-dlp {status.yt_dlp_version}</span>}
+        <div className="header-actions">
+          <div className="header-status">
+            <span>仅监听 127.0.0.1</span>
+            {status && <span>v{status.app_version} · yt-dlp {status.yt_dlp_version}</span>}
+          </div>
+          <button type="button" className="secondary-button app-quit" onClick={() => void handleQuit()}>
+            退出 Bilidown
+          </button>
         </div>
       </header>
 
       <section className="hero">
         <div>
           <p className="eyebrow">BILIBILI UGC DOWNLOADER</p>
-          <h2>把你有权保存的内容，<br /><em>留在本机。</em></h2>
+          <h2>
+            <span className="hero-line">把你有权保存的内容，</span>
+            <span className="hero-line hero-line-accent">留在本机。</span>
+          </h2>
           <p>输入 BV 号、AV 号、视频链接或 b23.tv 短链。登录态、解析过程和下载记录不会发送给第三方。</p>
         </div>
         <div className="hero-number">01—03</div>
@@ -219,9 +270,10 @@ export function App() {
         authStatus={authStatus}
         checking={authChecking}
         checkError={authCheckError}
+        autoSelected={autoSelected}
         onRefresh={() => setAuthCheckNonce((value) => value + 1)}
         onChange={handleAuthChange}
-        disabled={resolving}
+        disabled={resolving || authInitializing}
       />
 
       <section className="panel resolver-panel" aria-labelledby="resolver-heading">

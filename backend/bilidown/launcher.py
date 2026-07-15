@@ -46,20 +46,32 @@ def main() -> None:
     port = _configured_port()
     token = os.getenv("BILIDOWN_SESSION_TOKEN") or secrets.token_urlsafe(32)
     origin = f"http://127.0.0.1:{port}"
-    app = create_app(session_token=token, expected_origin=origin)
+    server: uvicorn.Server
+
+    def request_shutdown() -> None:
+        server.should_exit = True
+
+    app = create_app(
+        session_token=token,
+        expected_origin=origin,
+        shutdown_callback=request_shutdown,
+    )
     if os.getenv("BILIDOWN_NO_BROWSER") != "1":
         threading.Thread(
             target=_open_when_ready,
             args=(f"{origin}/?token={token}", port),
             daemon=True,
         ).start()
-    uvicorn.run(
-        app,
-        host="127.0.0.1",
-        port=port,
-        log_config=None,
-        access_log=False,
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app,
+            host="127.0.0.1",
+            port=port,
+            log_config=None,
+            access_log=False,
+        )
     )
+    server.run()
 
 
 if __name__ == "__main__":

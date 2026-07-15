@@ -23,8 +23,8 @@ LAME_SHA256="ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e"
 DEPLOYMENT_TARGET="13.0"
 ARCH="$(uname -m)"
 
-if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
-  echo "Unsupported macOS architecture: $ARCH" >&2
+if [[ "$ARCH" != "arm64" ]]; then
+  echo "Official macOS builds require Apple Silicon (arm64); found: $ARCH" >&2
   exit 1
 fi
 
