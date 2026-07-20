@@ -37,7 +37,7 @@ class ResourceResolver:
         logger = EngineLogger()
         try:
             with self._cookie_store.yt_dlp_options(auth) as cookie_options:
-                options: dict[str, object] = {
+                preview_options: dict[str, object] = {
                     **self._base_options(logger),
                     **cookie_options,
                     "skip_download": True,
@@ -46,7 +46,29 @@ class ResourceResolver:
                     "lazy_playlist": False,
                     "noplaylist": False,
                 }
-                raw_info = self._adapter.extract(canonical_url, options)
+                raw_info = self._adapter.extract(canonical_url, preview_options)
+                info = as_mapping(raw_info)
+                if info is None:
+                    raise EngineError(
+                        "invalid_metadata",
+                        "Bilibili 返回了无法识别的资源信息",
+                    )
+                kind = _resource_kind(canonical_url, info)
+                if kind == ResourceKind.VIDEO:
+                    full_options: dict[str, object] = {
+                        **self._base_options(logger),
+                        **cookie_options,
+                        "skip_download": True,
+                        "noplaylist": False,
+                    }
+                    raw_info = self._adapter.extract(canonical_url, full_options)
+                    full_info = as_mapping(raw_info)
+                    if full_info is None:
+                        raise EngineError(
+                            "invalid_metadata",
+                            "Bilibili 返回了无法识别的媒体信息",
+                        )
+                    info = full_info
         except InvalidCookieFile:
             raise
         except CookieLoadError as exc:
@@ -56,14 +78,14 @@ class ResourceResolver:
             ) from exc
         except (DownloadError, OSError) as exc:
             raise map_engine_error(logger.last_error or str(exc)) from exc
-        info = as_mapping(raw_info)
-        if info is None:
-            raise EngineError("invalid_metadata", "Bilibili 返回了无法识别的资源信息")
-        return self._to_resource(canonical_url, info)
+        return self._to_resource(canonical_url, info, kind)
 
     @staticmethod
-    def _to_resource(canonical_url: str, info: dict[str, object]) -> ResolvedResource:
-        kind = _resource_kind(canonical_url, info)
+    def _to_resource(
+        canonical_url: str,
+        info: dict[str, object],
+        kind: ResourceKind,
+    ) -> ResolvedResource:
         raw_entries = as_mappings(info.get("entries"))
         entries = raw_entries or [info]
         truncated = len(entries) > _PREVIEW_LIMIT
@@ -96,7 +118,7 @@ class ResourceResolver:
         if kind == ResourceKind.LIVE:
             warnings.append("live_requires_recorder")
         video = None
-        if kind == ResourceKind.VIDEO and not raw_entries:
+        if kind == ResourceKind.VIDEO:
             match = _BVID_RE.search(
                 as_optional_str(info.get("id"))
                 or as_optional_str(info.get("webpage_url"))
