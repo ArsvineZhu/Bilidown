@@ -9,6 +9,7 @@ use tauri::{
 use crate::{backend, idle};
 
 pub struct ExitState(pub AtomicBool);
+pub struct TrayState(pub AtomicBool);
 
 pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {

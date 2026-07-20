@@ -7,9 +7,7 @@ mod idle;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-#[cfg(target_os = "macos")]
-use tauri::RunEvent;
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -18,11 +16,16 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_shell::init())
         .manage(desktop::ExitState(AtomicBool::new(false)))
+        .manage(desktop::TrayState(AtomicBool::new(false)))
         .manage(backend::BackendState::new())
         .setup(|app| {
             app.manage(idle::IdleState::load(app));
-            if let Err(error) = desktop::setup_tray(app) {
-                eprintln!("Bilidown tray setup failed: {error}");
+            match desktop::setup_tray(app) {
+                Ok(()) => app
+                    .state::<desktop::TrayState>()
+                    .0
+                    .store(true, Ordering::SeqCst),
+                Err(error) => eprintln!("Bilidown tray setup failed: {error}"),
             }
             idle::spawn_monitor(app.handle().clone());
             desktop::show_main_window(app.handle());
@@ -32,6 +35,11 @@ pub fn run() {
         .on_window_event(|window, event| {
             if window.label() == "main"
                 && let WindowEvent::CloseRequested { api, .. } = event
+                && window
+                    .app_handle()
+                    .state::<desktop::TrayState>()
+                    .0
+                    .load(Ordering::SeqCst)
                 && !window
                     .app_handle()
                     .state::<desktop::ExitState>()
@@ -61,11 +69,14 @@ pub fn run() {
         }
     };
 
-    app.run(|_app_handle, _event| {
+    app.run(|app_handle, event| {
+        if matches!(&event, RunEvent::Exit) {
+            backend::stop_backend(app_handle);
+        }
         #[cfg(target_os = "macos")]
         {
-            if let RunEvent::Reopen { .. } = _event {
-                desktop::show_main_window(_app_handle);
+            if let RunEvent::Reopen { .. } = event {
+                desktop::show_main_window(app_handle);
             }
         }
     });
