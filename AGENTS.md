@@ -6,7 +6,67 @@ Python backend code lives in `backend/bilidown/`: FastAPI routes, security middl
 
 ## Build, Test, and Development Commands
 
-Create a virtual environment, then install Python dependencies with `.venv\Scripts\python -m pip install -e ".[dev]"` on Windows or `.venv/bin/python -m pip install -e '.[dev]'` on macOS. Use `pnpm --dir frontend install --frozen-lockfile` for frontend dependencies. Run `python -m pytest`, `pnpm --dir frontend typecheck`, `pnpm --dir frontend test`, and `pnpm --dir frontend test:e2e` before submitting. `pnpm --dir frontend build` produces static assets. Desktop installers use `packaging/build-desktop.ps1` on Windows or `packaging/build-desktop.sh` on macOS after the matching FFmpeg preparation script.
+### Python virtual environment — two supported methods, either works
+
+If `uv` is available on the machine, prefer it:
+
+```bash
+uv venv
+uv pip install -e ".[dev]"
+```
+
+If `uv` is NOT available, use the standard approach:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
+On Windows, replace `.venv/bin/python` with `.venv\Scripts\python`.
+
+### Frontend dependencies (all platforms)
+
+```bash
+pnpm --dir frontend install --frozen-lockfile
+```
+
+### Running tests before submitting
+
+```bash
+python -m pytest
+pnpm --dir frontend typecheck
+pnpm --dir frontend test
+pnpm --dir frontend test:e2e
+```
+
+`pnpm --dir frontend build` produces static assets.
+
+### Building the desktop app (macOS)
+
+Prerequisites: Rust and pkg-config must be installed on the machine before building.
+
+```bash
+# Install Rust if not already installed
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install pkg-config via Homebrew (if not already installed)
+brew install pkg-config
+
+# Compile FFmpeg + LAME from source into .tools/ffmpeg/
+bash packaging/prepare-ffmpeg-macos.sh
+
+# Build the .app and .dmg
+PYTHON=.venv/bin/python bash packaging/build-desktop.sh
+```
+
+### Building the desktop app (Windows)
+
+```powershell
+packaging\prepare-ffmpeg.ps1
+packaging\build-desktop.ps1 -Python .\.venv\Scripts\python.exe
+```
+
+Outputs go to `src-tauri/target/release/bundle/`.
 
 ## Coding Style & Naming Conventions
 
