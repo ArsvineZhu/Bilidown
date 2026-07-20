@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AuthPanel } from "./components/AuthPanel";
 import { DownloadPanel } from "./components/DownloadPanel";
 import { JobList } from "./components/JobList";
+import { ResourcePreview } from "./components/ResourcePreview";
 import { VideoPreview } from "./components/VideoPreview";
 import { useAppController } from "./hooks/useAppController";
 
@@ -55,7 +56,14 @@ export function App() {
           onSelectedPagesChange={controller.setSelectedPages}
         />
       )}
-      {controller.video && controller.status && (
+      {controller.resource && !controller.video && (
+        <ResourcePreview
+          resource={controller.resource}
+          selectedItems={controller.selectedItems}
+          onSelectedItemsChange={controller.setSelectedItems}
+        />
+      )}
+      {controller.resource && controller.status && (
         <DownloadPanel
           status={controller.status}
           outputDir={controller.outputDir}
@@ -67,7 +75,14 @@ export function App() {
           onVideoModeChange={controller.setVideoMode}
           audioFormat={controller.audioFormat}
           onAudioFormatChange={controller.setAudioFormat}
-          selectedPageCount={controller.selectedPages.size}
+          selectedCount={
+            controller.video
+              ? controller.selectedPages.size
+              : controller.selectedItems.size
+          }
+          hasExactQualities={Boolean(controller.video)}
+          qualityHeight={controller.qualityHeight}
+          onQualityHeightChange={controller.setQualityHeight}
           busy={controller.creating}
           onCreate={(kind) => void controller.handleCreate(kind)}
           onOpenOutput={() => void controller.handleOpenOutput()}

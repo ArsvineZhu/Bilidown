@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from bilidown.input_parser import InvalidCredential, normalize_credential
+from bilidown.input_parser import InvalidCredential, normalize_credential, normalize_resource_url
 
 
 @pytest.mark.parametrize(
@@ -56,3 +56,30 @@ async def test_rejects_unsupported_credentials(credential: str) -> None:
     with pytest.raises(InvalidCredential):
         await normalize_credential(credential)
 
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.bilibili.com/bangumi/play/ss123",
+        "https://www.bilibili.com/cheese/play/ss123",
+        "https://space.bilibili.com/123/favlist?fid=456",
+        "https://live.bilibili.com/123",
+        "https://www.bilibili.tv/en/play/123/456",
+    ],
+)
+async def test_accepts_trusted_resource_urls(url: str) -> None:
+    assert await normalize_resource_url(url) == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://live.bilibili.com/123",
+        "https://example.com/bangumi/play/ss123",
+        "https://user:secret@www.bilibili.com/video/BV1xx411c7mD",
+        "https://www.bilibili.com:8443/video/BV1xx411c7mD",
+    ],
+)
+async def test_rejects_untrusted_resource_urls(url: str) -> None:
+    with pytest.raises(InvalidCredential):
+        await normalize_resource_url(url)

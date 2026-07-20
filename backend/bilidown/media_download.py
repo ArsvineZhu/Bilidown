@@ -14,6 +14,8 @@ from yt_dlp.cookies import CookieLoadError
 from yt_dlp.utils import DownloadCancelled, DownloadError
 
 from .cookies import CookieStore, InvalidCookieFile
+from .danmaku import convert_xml_to_ass
+from .download_result import DownloadOutcome
 from .errors import EngineError, map_engine_error
 from .files import ensure_output_directory, move_without_overwrite, sanitize_filename
 from .input_parser import NormalizedCredential
@@ -22,6 +24,7 @@ from .models import (
     AudioFormat,
     AuthConfig,
     CreateJobRequest,
+    JobItemResult,
     MediaKind,
     ResolvedVideo,
     VideoMode,
@@ -57,12 +60,21 @@ class MediaDownloadService:
         request: CreateJobRequest,
         cancel_event: threading.Event,
         progress: ProgressCallback,
-    ) -> list[str]:
+    ) -> DownloadOutcome:
         output_dir = ensure_output_directory(request.output_dir)
         temp_root = output_dir / ".bilidown-tmp"
         task_dir = temp_root / job_id
         task_dir.mkdir(parents=True, exist_ok=False)
         try:
+            if request.item_indices or request.item_urls:
+                return self._download_resource_items(
+                    normalized.canonical_url,
+                    task_dir,
+                    output_dir,
+                    request,
+                    cancel_event,
+                    progress,
+                )
             resolved = self._resolve(normalized, request.auth)
             if cancel_event.is_set():
                 raise DownloadCancelled("cancelled")
@@ -92,7 +104,7 @@ class MediaDownloadService:
                 raise EngineError("no_output", "下载完成但未找到输出文件")
             moved = [move_without_overwrite(path, output_dir) for path in artifacts]
             progress(ProgressUpdate(phase="completed", percent=100.0))
-            return [str(path) for path in moved]
+            return DownloadOutcome(paths=[str(path) for path in moved])
         except (DownloadCancelled, EngineError, InvalidCookieFile):
             raise
         except (DownloadError, OSError, httpx.HTTPError) as exc:
@@ -101,6 +113,241 @@ class MediaDownloadService:
             shutil.rmtree(task_dir, ignore_errors=True)
             with contextlib.suppress(OSError):
                 temp_root.rmdir()
+
+    def _download_resource_items(
+        self,
+        source_url: str,
+        task_dir: Path,
+        output_dir: Path,
+        request: CreateJobRequest,
+        cancel_event: threading.Event,
+        progress: ProgressCallback,
+    ) -> DownloadOutcome:
+        targets = (
+            [(source_url, index) for index in request.item_indices]
+            if request.item_indices
+            else [(url, None) for url in request.item_urls]
+        )
+        moved_paths: list[str] = []
+        results: list[JobItemResult] = []
+        for position, (url, playlist_index) in enumerate(targets, start=1):
+            if cancel_event.is_set():
+                raise DownloadCancelled("cancelled")
+            item_dir = task_dir / f"item-{position:03d}"
+            item_dir.mkdir()
+            item_label = (
+                f"{source_url}#item-{playlist_index}"
+                if playlist_index is not None
+                else url
+            )
+            try:
+                self._download_resource_item(
+                    url,
+                    playlist_index,
+                    item_dir,
+                    request,
+                    cancel_event,
+                    progress,
+                    position,
+                )
+                artifacts = [
+                    path
+                    for path in item_dir.rglob("*")
+                    if path.is_file() and path.suffix not in {".part", ".ytdl"}
+                ]
+                if request.media_kind == MediaKind.DANMAKU_ASS:
+                    xml_files = [
+                        path for path in artifacts if path.suffix.lower() == ".xml"
+                    ]
+                    for xml_path in xml_files:
+                        ass_path = xml_path.with_suffix(".ass")
+                        convert_xml_to_ass(xml_path, ass_path)
+                        xml_path.unlink()
+                    artifacts = [
+                        path
+                        for path in item_dir.rglob("*")
+                        if path.is_file()
+                        and path.suffix not in {".part", ".ytdl", ".xml"}
+                    ]
+                if not artifacts:
+                    raise EngineError(
+                        "no_output",
+                        "该条目下载完成但未找到输出文件",
+                    )
+                moved = [
+                    move_without_overwrite(path, output_dir)
+                    for path in artifacts
+                ]
+                paths = [str(path) for path in moved]
+                moved_paths.extend(paths)
+                results.append(
+                    JobItemResult(
+                        url=item_label,
+                        status="completed",
+                        result_paths=paths,
+                    )
+                )
+            except DownloadCancelled:
+                raise
+            except InvalidCookieFile:
+                raise
+            except EngineError as exc:
+                results.append(
+                    JobItemResult(
+                        url=item_label,
+                        status="failed",
+                        error_code=exc.code,
+                        error_message=exc.message,
+                    )
+                )
+            except (CookieLoadError, DownloadError, OSError, ValueError) as exc:
+                mapped = map_engine_error(str(exc))
+                results.append(
+                    JobItemResult(
+                        url=item_label,
+                        status="failed",
+                        error_code=mapped.code,
+                        error_message=mapped.message,
+                    )
+                )
+            finally:
+                shutil.rmtree(item_dir, ignore_errors=True)
+            progress(
+                ProgressUpdate(
+                    phase="downloading",
+                    current_page=position,
+                    percent=position / len(targets) * 100,
+                )
+            )
+        if not moved_paths:
+            first_error = next(
+                (item for item in results if item.error_message),
+                None,
+            )
+            error_code = (
+                first_error.error_code
+                if first_error and first_error.error_code
+                else "no_output"
+            )
+            error_message = (
+                first_error.error_message
+                if first_error and first_error.error_message
+                else "所有条目均下载失败"
+            )
+            raise EngineError(
+                error_code,
+                error_message,
+            )
+        progress(ProgressUpdate(phase="completed", percent=100.0))
+        return DownloadOutcome(paths=moved_paths, item_results=results)
+
+    def _download_resource_item(
+        self,
+        url: str,
+        playlist_index: int | None,
+        task_dir: Path,
+        request: CreateJobRequest,
+        cancel_event: threading.Event,
+        progress: ProgressCallback,
+        current_item: int,
+    ) -> None:
+        logger = EngineLogger()
+
+        def hook(raw_update: object) -> None:
+            if cancel_event.is_set():
+                raise DownloadCancelled("cancelled")
+            update = as_mapping(raw_update)
+            if update is None:
+                return
+            total = as_float(update.get("total_bytes")) or as_float(
+                update.get("total_bytes_estimate")
+            )
+            downloaded = as_float(update.get("downloaded_bytes"))
+            percent = (
+                min(100.0, max(0.0, downloaded / total * 100))
+                if total and downloaded is not None
+                else None
+            )
+            value = ProgressUpdate(
+                phase=(
+                    "postprocessing"
+                    if as_str(update.get("status")) == "finished"
+                    else "downloading"
+                ),
+                current_page=current_item,
+            )
+            if percent is not None:
+                value["percent"] = percent
+            progress(value)
+
+        options: dict[str, object] = {
+            **self._base_options(logger),
+            "noplaylist": playlist_index is None,
+            "paths": {"home": str(task_dir), "temp": str(task_dir)},
+            "outtmpl": {
+                "default": str(
+                    task_dir
+                    / "%(playlist_index)03d - %(title).150B [%(id)s].%(ext)s"
+                )
+            },
+            "progress_hooks": [hook],
+            "overwrites": False,
+        }
+        if playlist_index is not None:
+            options["playlist_items"] = str(playlist_index)
+        self._apply_resource_options(options, request)
+        try:
+            with self._cookie_store.yt_dlp_options(request.auth) as cookie_options:
+                self._adapter.download([url], {**options, **cookie_options})
+        except DownloadCancelled:
+            raise
+        except CookieLoadError as exc:
+            raise EngineError(
+                "cookie_decryption_failed",
+                "无法读取浏览器 Cookie，请使用应用内一键登录或 cookies.txt",
+            ) from exc
+        except DownloadError as exc:
+            raise map_engine_error(logger.last_error or str(exc)) from exc
+
+    @staticmethod
+    def _apply_resource_options(
+        options: dict[str, object],
+        request: CreateJobRequest,
+    ) -> None:
+        if request.media_kind == MediaKind.COVER:
+            options.update(
+                {
+                    "skip_download": True,
+                    "writethumbnail": True,
+                    "write_all_thumbnails": False,
+                }
+            )
+            return
+        if request.media_kind == MediaKind.SUBTITLES:
+            options.update(
+                {
+                    "skip_download": True,
+                    "writesubtitles": True,
+                    "writeautomaticsub": True,
+                    "subtitleslangs": ["all", "-danmaku"],
+                    "subtitlesformat": "srt/best",
+                }
+            )
+            return
+        if request.media_kind in {
+            MediaKind.DANMAKU_XML,
+            MediaKind.DANMAKU_ASS,
+        }:
+            options.update(
+                {
+                    "skip_download": True,
+                    "writesubtitles": True,
+                    "subtitleslangs": ["danmaku"],
+                    "subtitlesformat": "best",
+                }
+            )
+            return
+        MediaDownloadService._apply_format_options(options, request)
 
     def _download_selected_pages(
         self,
@@ -248,8 +495,8 @@ class MediaDownloadService:
                 return
             height = request.quality_height
             options["format"] = (
-                f"bv[height={height}][vcodec^=avc1]+ba[acodec^=mp4a]/"
-                f"bv[height={height}]+ba/b[height={height}]"
+                f"bv*[height<={height}][vcodec^=avc1]+ba[acodec^=mp4a]/"
+                f"bv*[height<={height}]+ba/b[height<={height}]/best"
             )
             options["merge_output_format"] = "mp4"
             return

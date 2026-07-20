@@ -219,6 +219,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .page-number { color: var(--pink); font: 700 13px/1 var(--font-mono); }
 .page-title { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .page-duration { color: var(--muted); font: 13px/1 var(--font-mono); }
+.resource-preview h2 { max-width: 760px; }
+.resource-thumbnail { width: 160px; aspect-ratio: 16 / 10; object-fit: cover; }
+.resource-warning { margin: 10px 0; }
+.resource-list { max-height: 420px; }
+.resource-limit { color: var(--yellow); font-size: 13px; }
 
 .download-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .download-card { position: relative; display: flex; min-height: 330px; flex-direction: column; padding: 22px; border: 1px solid var(--line); background: #101318; overflow: hidden; }
@@ -234,6 +239,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .accent-video button { background: var(--cyan); }
 .codec-note { min-height: 38px; font: 12px/1.55 var(--font-mono); }
 .output-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; margin-top: 20px; }
+.artifact-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 18px; border: 1px solid var(--line); background: #101318; }
+.artifact-actions > div { margin-right: auto; }
+.artifact-actions h3 { margin-bottom: 6px; }
+.artifact-actions p { margin: 0; color: var(--muted); font-size: 13px; }
 .secondary-button, .danger-button { min-height: 42px; padding: 0 14px; border: 1px solid #4a525e; background: transparent; color: #e7e9ed; }
 .danger-button { border-color: rgba(255, 107, 107, 0.5); color: #ffb3b3; }
 
@@ -246,6 +255,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .job-status { min-width: 62px; padding: 7px; color: var(--muted); border: 1px solid #434a54; text-align: center; font: 700 12px/1 var(--font-mono); }
 .job-status.running { color: var(--cyan); border-color: var(--cyan); }
 .job-status.completed { color: #9be28f; border-color: #5b8c55; }
+.job-status.partial { color: var(--yellow); border-color: var(--yellow); }
 .job-status.failed { color: #ffaaaa; border-color: var(--danger); }
 .job-status.cancelled { color: var(--yellow); border-color: var(--yellow); }
 .job-item progress { width: 100%; height: 10px; align-self: center; accent-color: var(--cyan); }
@@ -267,6 +277,8 @@ footer { display: flex; justify-content: space-between; gap: 30px; padding: 24px
   .video-preview { grid-template-columns: 1fr; }
   .download-grid { grid-template-columns: 1fr; }
   .download-card { min-height: 230px; }
+  .artifact-actions { align-items: stretch; flex-direction: column; }
+  .artifact-actions > div { margin-right: 0; }
 }
 
 @media (max-width: 600px) {

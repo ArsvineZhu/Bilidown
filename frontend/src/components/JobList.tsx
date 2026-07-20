@@ -26,6 +26,7 @@ export function JobList({ jobs, onCancel, onRetry }: JobListProps) {
     queued: t("jobs.queued"),
     running: t("jobs.running"),
     completed: t("jobs.completed"),
+    partial: t("jobs.partial"),
     failed: t("jobs.failed"),
     cancelled: t("jobs.cancelled"),
   };
@@ -53,6 +54,12 @@ export function JobList({ jobs, onCancel, onRetry }: JobListProps) {
                       ? t("jobs.cover")
                       : job.request.media_kind === "audio"
                         ? t("jobs.audio")
+                        : job.request.media_kind === "subtitles"
+                          ? t("jobs.subtitles")
+                          : job.request.media_kind === "danmaku_xml"
+                            ? t("jobs.danmakuXml")
+                            : job.request.media_kind === "danmaku_ass"
+                              ? t("jobs.danmakuAss")
                         : job.request.quality_height
                           ? t("jobs.qualityVideo", { height: job.request.quality_height })
                           : t("jobs.video")}
@@ -67,12 +74,26 @@ export function JobList({ jobs, onCancel, onRetry }: JobListProps) {
                 <span>{job.progress.speed ? `${formatBytes(job.progress.speed)}/s` : t("jobs.waitingSpeed")}</span>
               </div>
               {job.error_message && <details className="job-error"><summary>{t("jobs.showError")}</summary><p>{job.error_message}</p></details>}
+              {job.item_results.some((item) => item.status === "failed") && (
+                <details className="job-error">
+                  <summary>
+                    {t("jobs.failedItems", {
+                      count: job.item_results.filter((item) => item.status === "failed").length,
+                    })}
+                  </summary>
+                  {job.item_results
+                    .filter((item) => item.status === "failed")
+                    .map((item) => (
+                      <p key={item.url}>{item.url}: {item.error_message ?? t("jobs.failed")}</p>
+                    ))}
+                </details>
+              )}
               {job.result_paths.length > 0 && <p className="result-path">{job.result_paths.join("\n")}</p>}
               <div className="job-actions">
                 {(job.status === "queued" || job.status === "running") && (
                   <button type="button" className="danger-button" onClick={() => onCancel(job.id)}>{t("jobs.cancel")}</button>
                 )}
-                {(job.status === "failed" || job.status === "cancelled") && (
+                {(job.status === "partial" || job.status === "failed" || job.status === "cancelled") && (
                   <button type="button" className="secondary-button" onClick={() => onRetry(job.id)}>{t("jobs.retry")}</button>
                 )}
               </div>

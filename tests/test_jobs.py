@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from bilidown.jobs import JobManager
+from bilidown.download_result import DownloadOutcome
 from bilidown.models import CreateJobRequest, GuestAuth, JobStatus, MediaKind
 
 
@@ -12,13 +13,20 @@ class FakeEngine:
             from yt_dlp.utils import DownloadCancelled
 
             raise DownloadCancelled("cancelled")
-        return [str(Path(request.output_dir) / "video.mp4")]
+        return DownloadOutcome(
+            paths=[str(Path(request.output_dir) / "video.mp4")]
+        )
 
 
 async def wait_for_terminal(manager: JobManager, job_id: str):
     for _ in range(100):
         job = manager.get(job_id)
-        if job.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+        if job.status in {
+            JobStatus.COMPLETED,
+            JobStatus.PARTIAL,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        }:
             return job
         await asyncio.sleep(0.01)
     raise AssertionError("job did not finish")
@@ -58,4 +66,3 @@ async def test_can_cancel_queued_job(tmp_path: Path) -> None:
     submitted = await manager.submit(request)
     cancelled = manager.cancel(submitted.id)
     assert cancelled.status == JobStatus.CANCELLED
-

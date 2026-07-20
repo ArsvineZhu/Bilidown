@@ -46,7 +46,10 @@ describe("DownloadPanel", () => {
         onVideoModeChange={onVideoModeChange}
         audioFormat="m4a"
         onAudioFormatChange={onAudioFormatChange}
-        selectedPageCount={1}
+        selectedCount={1}
+        hasExactQualities
+        qualityHeight={1080}
+        onQualityHeightChange={vi.fn()}
         busy={false}
         onCreate={vi.fn()}
         onOpenOutput={vi.fn()}

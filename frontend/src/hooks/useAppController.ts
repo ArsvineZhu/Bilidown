@@ -9,7 +9,9 @@ import type {
   AutoAuthResult,
   CreateJobRequest,
   JobView,
+  MediaKind,
   QualityOption,
+  ResolvedResource,
   ResolvedVideo,
 } from "../api";
 import { isDesktopApp, quitDesktopApp } from "../desktop";
@@ -18,12 +20,23 @@ import { useDesktopLifecycle } from "./useDesktopLifecycle";
 
 const sessionToken = readSessionToken();
 const api = new ApiClient(sessionToken);
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const TERMINAL_STATUSES = new Set([
+  "completed",
+  "partial",
+  "failed",
+  "cancelled",
+]);
 
 function updateJobList(jobs: JobView[], updated: JobView): JobView[] {
   const index = jobs.findIndex((job) => job.id === updated.id);
   if (index === -1) return [updated, ...jobs];
   return jobs.map((job) => (job.id === updated.id ? updated : job));
+}
+
+function withPage(url: string, page: number): string {
+  const target = new URL(url);
+  target.searchParams.set("p", String(page));
+  return target.toString();
 }
 
 export function useAppController() {
@@ -37,8 +50,11 @@ export function useAppController() {
   const [authCheckNonce, setAuthCheckNonce] = useState(0);
   const [credential, setCredential] = useState("");
   const [video, setVideo] = useState<ResolvedVideo | null>(null);
+  const [resource, setResource] = useState<ResolvedResource | null>(null);
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [qualityId, setQualityId] = useState<string | null>(null);
+  const [qualityHeight, setQualityHeight] = useState(1080);
   const [videoMode, setVideoMode] = useState<"compatible_mp4" | "source_auto">("compatible_mp4");
   const [audioFormat, setAudioFormat] = useState<"best_source" | "m4a" | "mp3">("m4a");
   const [outputDir, setOutputDir] = useState("");
@@ -165,10 +181,24 @@ export function useAppController() {
     setResolving(true);
     setError(null);
     try {
-      const resolved = await api.resolve(credential, auth);
-      setVideo(resolved);
+      const resolved = await api.resolveResource(credential, auth);
+      setResource(resolved);
+      setVideo(resolved.video);
       setCredential(resolved.canonical_url);
-      setSelectedPages(new Set([resolved.selected_page]));
+      setSelectedItems(
+        new Set(
+          resolved.items
+            .filter((item) => item.selected)
+            .map((item) => item.index),
+        ),
+      );
+      setSelectedPages(
+        new Set(
+          resolved.video
+            ? [resolved.video.selected_page]
+            : [],
+        ),
+      );
     } catch (resolveError) {
       setError(resolveError instanceof Error ? resolveError.message : i18n.t("errors.resolve"));
     } finally {
@@ -176,17 +206,42 @@ export function useAppController() {
     }
   }
 
-  async function handleCreate(kind: "cover" | "audio" | "video") {
-    if (!video || !status) return;
+  async function handleCreate(kind: MediaKind) {
+    if (!resource || !status) return;
+    const selectedCount = video ? selectedPages.size : selectedItems.size;
+    if (
+      selectedCount > 20
+      && !window.confirm(i18n.t("errors.largeBatch", { count: selectedCount }))
+    ) {
+      return;
+    }
     setCreating(true);
     setError(null);
     const selectedQuality = commonQualities.find((quality) => quality.id === qualityId);
+    const isTextTrack =
+      kind === "subtitles"
+      || kind === "danmaku_xml"
+      || kind === "danmaku_ass";
     const request: CreateJobRequest = {
-      credential: video.canonical_url,
+      credential: resource.canonical_url,
       media_kind: kind,
-      page_indices: kind === "cover" ? [] : [...selectedPages].sort((a, b) => a - b),
+      page_indices:
+        video && kind !== "cover" && !isTextTrack
+          ? [...selectedPages].sort((a, b) => a - b)
+          : [],
+      item_indices:
+        video
+          ? []
+          : [...selectedItems].sort((a, b) => a - b),
+      item_urls:
+        video && isTextTrack
+          ? [...selectedPages]
+              .sort((a, b) => a - b)
+              .map((index) => withPage(resource.canonical_url, index))
+          : [],
       ...(kind === "video" && selectedQuality ? { quality_height: selectedQuality.height } : {}),
-      ...(kind === "video" && qualityId ? { quality_id: qualityId } : {}),
+      ...(kind === "video" && video && qualityId ? { quality_id: qualityId } : {}),
+      ...(kind === "video" && !video ? { quality_height: qualityHeight } : {}),
       video_mode: videoMode,
       audio_format: audioFormat,
       auth,
@@ -278,18 +333,23 @@ export function useAppController() {
     jobs,
     outputDir,
     qualityId,
+    qualityHeight,
     resolving,
     selectedPages,
+    selectedItems,
     setAudioFormat,
     setAuthCheckNonce,
     setCredential,
     setOutputDir,
     setQualityId,
+    setQualityHeight,
     setSelectedPages,
+    setSelectedItems,
     setVideoMode,
     shuttingDown,
     status,
     video,
+    resource,
     videoMode,
   };
 }

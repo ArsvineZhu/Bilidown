@@ -37,6 +37,31 @@ const resolvedVideo = {
   ],
 };
 
+const resolvedResource = {
+  canonical_url: resolvedVideo.canonical_url,
+  kind: "video",
+  title: resolvedVideo.title,
+  uploader: resolvedVideo.uploader,
+  thumbnail: null,
+  items: [{
+    index: 1,
+    id: resolvedVideo.bvid,
+    url: resolvedVideo.canonical_url,
+    title: resolvedVideo.title,
+    uploader: resolvedVideo.uploader,
+    duration: resolvedVideo.duration,
+    thumbnail: null,
+    selected: true,
+    live: false,
+    branch: false,
+  }],
+  total_items: 1,
+  truncated: false,
+  experimental: false,
+  warnings: [],
+  video: resolvedVideo,
+};
+
 test("resolve and create a video task", async ({ page }) => {
   await page.route("**/api/status", (route) => route.fulfill({ json: {
     app_version: "0.1.0",
@@ -63,18 +88,19 @@ test("resolve and create a video task", async ({ page }) => {
       request: route.request().postDataJSON(),
       progress: { phase: "completed", current_page: 1, downloaded_bytes: 100, total_bytes: 100, percent: 100, speed: null, eta: null },
       result_paths: ["C:\\Downloads\\Bilidown\\video.mp4"],
+      item_results: [],
       error_code: null,
       error_message: null,
       created_at: "2026-07-14T00:00:00Z",
       updated_at: "2026-07-14T00:00:01Z",
     } });
   });
-  await page.route("**/api/resolve", (route) => route.fulfill({ json: resolvedVideo }));
+  await page.route("**/api/resources/resolve", (route) => route.fulfill({ json: resolvedResource }));
 
   await page.goto("/?token=e2e-token");
   await expect(page.locator(".hero-line")).toHaveCount(2);
-  await page.getByLabel("BV 号、AV 号或视频链接").fill("BV1xx411c7mD");
-  await page.getByRole("button", { name: "解析视频" }).click();
+  await page.getByLabel("Bilibili 媒体链接、BV 号或 AV 号").fill("BV1xx411c7mD");
+  await page.getByRole("button", { name: "解析媒体" }).click();
   await expect(page.getByRole("heading", { name: "端到端测试视频" })).toBeVisible();
   await page.getByRole("button", { name: "下载 1 P 视频" }).click();
   await expect(page.getByText("已完成")).toBeVisible();
@@ -91,9 +117,22 @@ test("auto-selects Edge and confirms before exiting active jobs", async ({ page 
   await page.route("**/api/jobs", (route) => route.fulfill({ json: [{
     id: "job-1",
     status: "running",
-    request: { media_kind: "video" },
+    request: {
+      credential: resolvedVideo.canonical_url,
+      media_kind: "video",
+      page_indices: [1],
+      item_indices: [],
+      item_urls: [],
+      quality_height: 720,
+      quality_id: "30064",
+      video_mode: "compatible_mp4",
+      audio_format: "original",
+      auth: { kind: "guest" },
+      output_dir: "C:\\Downloads\\Bilidown",
+    },
     progress: { phase: "downloading", current_page: 1, downloaded_bytes: 1, total_bytes: 2, percent: 50, speed: null, eta: null },
     result_paths: [],
+    item_results: [],
     error_code: null,
     error_message: null,
     created_at: "2026-07-14T00:00:00Z",

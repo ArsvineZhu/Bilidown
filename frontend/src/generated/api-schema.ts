@@ -226,6 +226,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resources/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve Resource */
+        post: operations["resolve_resource_api_resources_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/status": {
         parameters: {
             query?: never;
@@ -366,6 +383,10 @@ export interface components {
             auth?: components["schemas"]["GuestAuth-Input"] | components["schemas"]["BrowserAuth-Input"] | components["schemas"]["CookieSessionAuth-Input"];
             /** Credential */
             credential: string;
+            /** Item Indices */
+            item_indices?: number[];
+            /** Item Urls */
+            item_urls?: string[];
             media_kind: components["schemas"]["MediaKind"];
             /** Output Dir */
             output_dir: string;
@@ -386,6 +407,10 @@ export interface components {
             auth: components["schemas"]["GuestAuth-Output"] | components["schemas"]["BrowserAuth-Output"] | components["schemas"]["CookieSessionAuth-Output"];
             /** Credential */
             credential: string;
+            /** Item Indices */
+            item_indices: number[];
+            /** Item Urls */
+            item_urls: string[];
             media_kind: components["schemas"]["MediaKind"];
             /** Output Dir */
             output_dir: string;
@@ -419,6 +444,22 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** JobItemResult */
+        JobItemResult: {
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Result Paths */
+            result_paths: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "completed" | "failed";
+            /** Url */
+            url: string;
+        };
         /** JobProgress */
         JobProgress: {
             /** Current Page */
@@ -443,7 +484,7 @@ export interface components {
          * JobStatus
          * @enum {string}
          */
-        JobStatus: "queued" | "running" | "completed" | "failed" | "cancelled";
+        JobStatus: "queued" | "running" | "completed" | "partial" | "failed" | "cancelled";
         /** JobView */
         JobView: {
             /** Created At */
@@ -454,6 +495,8 @@ export interface components {
             error_message: string | null;
             /** Id */
             id: string;
+            /** Item Results */
+            item_results: components["schemas"]["JobItemResult"][];
             progress: components["schemas"]["JobProgress"];
             request: components["schemas"]["CreateJobRequest-Output"];
             /** Result Paths */
@@ -466,7 +509,7 @@ export interface components {
          * MediaKind
          * @enum {string}
          */
-        MediaKind: "cover" | "audio" | "video";
+        MediaKind: "cover" | "audio" | "video" | "subtitles" | "danmaku_xml" | "danmaku_ass";
         /** OpenOutputRequest */
         OpenOutputRequest: {
             /** Path */
@@ -517,6 +560,35 @@ export interface components {
             /** Credential */
             credential: string;
         };
+        /** ResolvedResource */
+        ResolvedResource: {
+            /** Canonical Url */
+            canonical_url: string;
+            /**
+             * Experimental
+             * @default false
+             */
+            experimental: boolean;
+            /** Items */
+            items: components["schemas"]["ResourceItem"][];
+            kind: components["schemas"]["ResourceKind"];
+            /** Thumbnail */
+            thumbnail: string | null;
+            /** Title */
+            title: string;
+            /** Total Items */
+            total_items: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Uploader */
+            uploader: string | null;
+            video: components["schemas"]["ResolvedVideo"] | null;
+            /** Warnings */
+            warnings: string[];
+        };
         /** ResolvedVideo */
         ResolvedVideo: {
             /** Aid */
@@ -540,6 +612,50 @@ export interface components {
             title: string;
             /** Uploader */
             uploader: string | null;
+        };
+        /** ResourceItem */
+        ResourceItem: {
+            /**
+             * Branch
+             * @default false
+             */
+            branch: boolean;
+            /** Duration */
+            duration: number | null;
+            /** Id */
+            id: string;
+            /** Index */
+            index: number;
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+            /**
+             * Selected
+             * @default true
+             */
+            selected: boolean;
+            /** Thumbnail */
+            thumbnail: string | null;
+            /** Title */
+            title: string;
+            /** Uploader */
+            uploader: string | null;
+            /** Url */
+            url: string;
+        };
+        /**
+         * ResourceKind
+         * @enum {string}
+         */
+        ResourceKind: "video" | "interactive" | "bangumi" | "course" | "favorites" | "collection" | "series" | "playlist" | "watch_later" | "space" | "audio" | "dynamic" | "live" | "international" | "category" | "search" | "unknown";
+        /** ResourceResolveRequest */
+        ResourceResolveRequest: {
+            /** Auth */
+            auth?: components["schemas"]["GuestAuth-Input"] | components["schemas"]["BrowserAuth-Input"] | components["schemas"]["CookieSessionAuth-Input"];
+            /** Credential */
+            credential: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -958,6 +1074,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolvedVideo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_resource_api_resources_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedResource"];
                 };
             };
             /** @description Validation Error */

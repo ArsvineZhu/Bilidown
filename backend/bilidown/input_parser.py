@@ -12,6 +12,16 @@ _BVID_RE = re.compile(r"^BV[0-9A-Za-z]{10}$", re.IGNORECASE)
 _AVID_RE = re.compile(r"^av([0-9]+)$", re.IGNORECASE)
 _VIDEO_PATH_RE = re.compile(r"^/video/(BV[0-9A-Za-z]{10}|av[0-9]+)(?:/)?$", re.IGNORECASE)
 _BILIBILI_HOSTS = {"bilibili.com", "www.bilibili.com", "m.bilibili.com"}
+_BILIBILI_RESOURCE_HOSTS = _BILIBILI_HOSTS | {
+    "space.bilibili.com",
+    "live.bilibili.com",
+    "player.bilibili.com",
+    "t.bilibili.com",
+    "bilibili.tv",
+    "www.bilibili.tv",
+    "biliintl.com",
+    "www.biliintl.com",
+}
 _SHORT_HOSTS = {"b23.tv", "www.b23.tv"}
 
 
@@ -63,9 +73,9 @@ async def _resolve_short_url(url: str, client: httpx.AsyncClient) -> str:
     for _ in range(5):
         parsed = urlsplit(current)
         host = (parsed.hostname or "").lower().rstrip(".")
-        if parsed.scheme.lower() != "https" or host not in _SHORT_HOSTS | _BILIBILI_HOSTS:
+        if parsed.scheme.lower() != "https" or host not in _SHORT_HOSTS | _BILIBILI_RESOURCE_HOSTS:
             raise InvalidCredential("短链跳转到了不受信任的地址")
-        if host in _BILIBILI_HOSTS:
+        if host in _BILIBILI_RESOURCE_HOSTS:
             return current
         try:
             request = client.build_request(
@@ -121,3 +131,38 @@ async def normalize_credential(
     if parsed.scheme or parsed.netloc:
         return _normalize_bilibili_url(value)
     raise InvalidCredential("无法识别该视频凭据")
+
+
+async def normalize_resource_url(
+    value: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> str:
+    value = value.strip()
+    if _BVID_RE.fullmatch(value) or _AVID_RE.fullmatch(value):
+        return (await normalize_credential(value, client=client)).canonical_url
+    parsed = urlsplit(value)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host in _SHORT_HOSTS:
+        if parsed.scheme.lower() != "https":
+            raise InvalidCredential("短链必须使用 HTTPS")
+        if client is not None:
+            value = await _resolve_short_url(value, client)
+        else:
+            timeout = httpx.Timeout(10.0, connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout) as owned_client:
+                value = await _resolve_short_url(value, owned_client)
+        parsed = urlsplit(value)
+        host = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme.lower() != "https":
+        raise InvalidCredential("Bilibili 链接必须使用 HTTPS")
+    try:
+        has_custom_port = parsed.port is not None
+    except ValueError as exc:
+        raise InvalidCredential("Bilibili 链接端口无效") from exc
+    if parsed.username or parsed.password or has_custom_port:
+        raise InvalidCredential("Bilibili 链接不能包含凭据或自定义端口")
+    if host not in _BILIBILI_RESOURCE_HOSTS:
+        raise InvalidCredential("链接必须指向受支持的 Bilibili 页面")
+    path = parsed.path or "/"
+    return urlunsplit(("https", host, path, parsed.query, ""))

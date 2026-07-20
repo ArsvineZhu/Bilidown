@@ -15,6 +15,9 @@ export type AutoAuthResult = Schemas["AutoAuthResult"];
 export type QualityOption = Schemas["QualityOption"];
 export type VideoPage = Schemas["VideoPage"];
 export type ResolvedVideo = Schemas["ResolvedVideo"];
+export type ResolvedResource = Schemas["ResolvedResource"];
+export type ResourceItem = Schemas["ResourceItem"];
+export type MediaKind = Schemas["MediaKind"];
 export type AppStatus = Schemas["AppStatus"];
 export type JobStatus = Schemas["JobStatus"];
 export type CreateJobRequest = Schemas["CreateJobRequest-Input"];
@@ -57,6 +60,7 @@ const JOB_STATUSES = new Set<JobStatus>([
   "queued",
   "running",
   "completed",
+  "partial",
   "failed",
   "cancelled",
 ]);
@@ -108,6 +112,18 @@ export class ApiClient {
     const { data, error, response } = await client.POST("/api/resolve", {
       body: { credential, auth },
     });
+    return requireData(data, error, response);
+  }
+
+  async resolveResource(
+    credential: string,
+    auth: AuthConfig,
+  ): Promise<ResolvedResource> {
+    const client = await this.client;
+    const { data, error, response } = await client.POST(
+      "/api/resources/resolve",
+      { body: { credential, auth } },
+    );
     return requireData(data, error, response);
   }
 

@@ -10,6 +10,7 @@ from yt_dlp.networking.exceptions import RequestError
 from yt_dlp.utils import DownloadError
 
 from .cookies import CookieStore, InvalidCookieFile
+from .download_result import DownloadOutcome
 from .errors import EngineError, map_engine_error
 from .input_parser import NormalizedCredential
 from .media_download import MediaDownloadService
@@ -28,10 +29,12 @@ from .models import (
     CreateJobRequest,
     GuestAuth,
     QualityOption,
+    ResolvedResource,
     ResolvedVideo,
     VideoPage,
 )
 from .progress import ProgressCallback
+from .resource_resolver import ResourceResolver
 from .runtime import ffmpeg_location
 from .yt_adapter import DEFAULT_YT_ADAPTER, YtDlpAdapter
 from .yt_logging import EngineLogger
@@ -72,6 +75,11 @@ class DownloaderEngine:
     ) -> None:
         self.cookie_store = cookie_store
         self._adapter = adapter
+        self._resources = ResourceResolver(
+            cookie_store,
+            adapter,
+            self._base_options,
+        )
         self._downloads = MediaDownloadService(
             cookie_store,
             adapter,
@@ -216,6 +224,13 @@ class DownloaderEngine:
             raise map_engine_error(logger.last_error or str(exc)) from exc
         return resolved_video_from_info(info, normalized)
 
+    def resolve_resource(
+        self,
+        canonical_url: str,
+        auth: AuthConfig,
+    ) -> ResolvedResource:
+        return self._resources.resolve(canonical_url, auth)
+
     @staticmethod
     def _quality_options(
         formats: list[dict[str, object]],
@@ -229,7 +244,7 @@ class DownloaderEngine:
         request: CreateJobRequest,
         cancel_event: threading.Event,
         progress: ProgressCallback,
-    ) -> list[str]:
+    ) -> DownloadOutcome:
         return self._downloads.download_job(
             job_id,
             normalized,

@@ -19,7 +19,11 @@ from . import __version__
 from .cookies import CookieStore, InvalidCookieFile
 from .engine import DownloaderEngine, EngineError
 from .files import ensure_output_directory
-from .input_parser import InvalidCredential, normalize_credential
+from .input_parser import (
+    InvalidCredential,
+    normalize_credential,
+    normalize_resource_url,
+)
 from .jobs import JobManager
 from .models import (
     AppStatus,
@@ -32,6 +36,8 @@ from .models import (
     JobView,
     OpenOutputRequest,
     ResolveRequest,
+    ResourceResolveRequest,
+    ResolvedResource,
     ResolvedVideo,
 )
 from .runtime import ffmpeg_version, find_ffmpeg_binary, frontend_dist
@@ -114,6 +120,25 @@ def create_app(
                 detail={"code": exc.code, "message": exc.message},
             ) from exc
 
+    @app.post("/api/resources/resolve", response_model=ResolvedResource)
+    async def resolve_resource(request: ResourceResolveRequest) -> ResolvedResource:
+        try:
+            canonical_url = await normalize_resource_url(request.credential)
+            return await asyncio.to_thread(
+                engine.resolve_resource,
+                canonical_url,
+                request.auth,
+            )
+        except InvalidCredential as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except InvalidCookieFile as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except EngineError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+
     @app.post("/api/auth/status", response_model=AuthStatus)
     async def auth_status(request: AuthStatusRequest) -> AuthStatus:
         try:
@@ -163,7 +188,10 @@ def create_app(
 
     @app.post("/api/jobs", response_model=JobView, status_code=201)
     async def create_job(request: CreateJobRequest) -> JobView:
-        if request.media_kind != "cover" and find_ffmpeg_binary("ffmpeg") is None:
+        if (
+            request.media_kind in {"audio", "video"}
+            and find_ffmpeg_binary("ffmpeg") is None
+        ):
             raise HTTPException(status_code=409, detail="未找到 ffmpeg，无法创建媒体任务")
         try:
             ensure_output_directory(request.output_dir)
@@ -215,6 +243,7 @@ def create_app(
                     yield f"data: {payload}\n\n"
                 if view.status in {
                     JobStatus.COMPLETED,
+                    JobStatus.PARTIAL,
                     JobStatus.FAILED,
                     JobStatus.CANCELLED,
                 }:

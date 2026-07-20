@@ -44,6 +44,10 @@ class ResolveRequest(ApiModel):
         return value
 
 
+class ResourceResolveRequest(ResolveRequest):
+    pass
+
+
 class AuthStatusRequest(ApiModel):
     auth: AuthConfig = Field(default_factory=GuestAuth)
 
@@ -97,10 +101,60 @@ class ResolvedVideo(ApiModel):
     pages: list[VideoPage]
 
 
+class ResourceKind(StrEnum):
+    VIDEO = "video"
+    INTERACTIVE = "interactive"
+    BANGUMI = "bangumi"
+    COURSE = "course"
+    FAVORITES = "favorites"
+    COLLECTION = "collection"
+    SERIES = "series"
+    PLAYLIST = "playlist"
+    WATCH_LATER = "watch_later"
+    SPACE = "space"
+    AUDIO = "audio"
+    DYNAMIC = "dynamic"
+    LIVE = "live"
+    INTERNATIONAL = "international"
+    CATEGORY = "category"
+    SEARCH = "search"
+    UNKNOWN = "unknown"
+
+
+class ResourceItem(ApiModel):
+    index: int = Field(ge=1)
+    id: str
+    url: str
+    title: str
+    uploader: str | None = None
+    duration: float | None = None
+    thumbnail: str | None = None
+    selected: bool = True
+    live: bool = False
+    branch: bool = False
+
+
+class ResolvedResource(ApiModel):
+    canonical_url: str
+    kind: ResourceKind
+    title: str
+    uploader: str | None = None
+    thumbnail: str | None = None
+    items: list[ResourceItem]
+    total_items: int
+    truncated: bool = False
+    experimental: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    video: ResolvedVideo | None = None
+
+
 class MediaKind(StrEnum):
     COVER = "cover"
     AUDIO = "audio"
     VIDEO = "video"
+    SUBTITLES = "subtitles"
+    DANMAKU_XML = "danmaku_xml"
+    DANMAKU_ASS = "danmaku_ass"
 
 
 class AudioFormat(StrEnum):
@@ -119,6 +173,7 @@ class JobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
+    PARTIAL = "partial"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
@@ -127,6 +182,8 @@ class CreateJobRequest(ApiModel):
     credential: str = Field(min_length=1, max_length=2048)
     media_kind: MediaKind
     page_indices: list[int] = Field(default_factory=list, max_length=100)
+    item_urls: list[str] = Field(default_factory=list, max_length=100)
+    item_indices: list[int] = Field(default_factory=list, max_length=100)
     quality_height: int | None = Field(default=None, ge=1, le=10000)
     quality_id: str | None = Field(default=None, min_length=1, max_length=100)
     video_mode: VideoMode = VideoMode.COMPATIBLE_MP4
@@ -146,6 +203,21 @@ class CreateJobRequest(ApiModel):
             raise ValueError("分 P 序号必须从 1 开始")
         return list(dict.fromkeys(value))
 
+    @field_validator("item_urls")
+    @classmethod
+    def unique_item_urls(cls, value: list[str]) -> list[str]:
+        stripped = [url.strip() for url in value]
+        if any(not url for url in stripped):
+            raise ValueError("批量任务链接不能为空")
+        return list(dict.fromkeys(stripped))
+
+    @field_validator("item_indices")
+    @classmethod
+    def unique_item_indices(cls, value: list[int]) -> list[int]:
+        if any(index < 1 for index in value):
+            raise ValueError("批量条目序号必须从 1 开始")
+        return list(dict.fromkeys(value))
+
     @model_validator(mode="after")
     def validate_media_options(self) -> "CreateJobRequest":
         if (
@@ -154,8 +226,13 @@ class CreateJobRequest(ApiModel):
             and self.quality_id is None
         ):
             raise ValueError("视频任务必须指定清晰度")
-        if self.media_kind != MediaKind.COVER and not self.page_indices:
-            raise ValueError("音频或视频任务至少选择一个分 P")
+        if (
+            not self.item_urls
+            and not self.item_indices
+            and self.media_kind != MediaKind.COVER
+            and not self.page_indices
+        ):
+            raise ValueError("媒体任务至少选择一个条目或分 P")
         return self
 
 
@@ -169,12 +246,21 @@ class JobProgress(ApiModel):
     eta: float | None = None
 
 
+class JobItemResult(ApiModel):
+    url: str
+    status: Literal["completed", "failed"]
+    result_paths: list[str] = Field(default_factory=list)
+    error_code: str | None = None
+    error_message: str | None = None
+
+
 class JobView(ApiModel):
     id: str
     status: JobStatus
     request: CreateJobRequest
     progress: JobProgress = Field(default_factory=JobProgress)
     result_paths: list[str] = Field(default_factory=list)
+    item_results: list[JobItemResult] = Field(default_factory=list)
     error_code: str | None = None
     error_message: str | None = None
     created_at: str

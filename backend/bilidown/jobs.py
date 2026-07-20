@@ -12,8 +12,12 @@ from yt_dlp.utils import DownloadCancelled
 
 from .cookies import InvalidCookieFile
 from .engine import DownloaderEngine, EngineError
-from .input_parser import NormalizedCredential, normalize_credential
-from .models import CreateJobRequest, JobProgress, JobStatus, JobView
+from .input_parser import (
+    NormalizedCredential,
+    normalize_credential,
+    normalize_resource_url,
+)
+from .models import CreateJobRequest, JobItemResult, JobProgress, JobStatus, JobView
 from .progress import ProgressUpdate
 
 
@@ -29,6 +33,7 @@ class _JobRecord:
     status: JobStatus = JobStatus.QUEUED
     progress: JobProgress = field(default_factory=JobProgress)
     result_paths: list[str] = field(default_factory=list)
+    item_results: list[JobItemResult] = field(default_factory=list)
     error_code: str | None = None
     error_message: str | None = None
     created_at: str = field(default_factory=_now)
@@ -43,6 +48,7 @@ class _JobRecord:
             request=self.request,
             progress=copy.deepcopy(self.progress),
             result_paths=list(self.result_paths),
+            item_results=copy.deepcopy(self.item_results),
             error_code=self.error_code,
             error_message=self.error_message,
             created_at=self.created_at,
@@ -75,7 +81,20 @@ class JobManager:
             self._worker_task = None
 
     async def submit(self, request: CreateJobRequest) -> JobView:
-        normalized = await normalize_credential(request.credential)
+        if request.item_indices or request.item_urls:
+            canonical_url = await normalize_resource_url(request.credential)
+            normalized_urls = [
+                await normalize_resource_url(url) for url in request.item_urls
+            ]
+            request = request.model_copy(
+                update={
+                    "credential": canonical_url,
+                    "item_urls": normalized_urls,
+                }
+            )
+            normalized = NormalizedCredential(canonical_url, "resource", 1)
+        else:
+            normalized = await normalize_credential(request.credential)
         record = _JobRecord(id=uuid.uuid4().hex, request=request, normalized=normalized)
         self._jobs[record.id] = record
         await self._queue.put(record.id)
@@ -83,8 +102,12 @@ class JobManager:
 
     async def retry(self, job_id: str) -> JobView:
         record = self._require(job_id)
-        if record.status not in {JobStatus.FAILED, JobStatus.CANCELLED}:
-            raise ValueError("只有失败或取消的任务可以重试")
+        if record.status not in {
+            JobStatus.PARTIAL,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        }:
+            raise ValueError("只有部分完成、失败或取消的任务可以重试")
         return await self.submit(record.request.model_copy(deep=True))
 
     def get(self, job_id: str) -> JobView:
@@ -98,7 +121,12 @@ class JobManager:
 
     def cancel(self, job_id: str) -> JobView:
         record = self._require(job_id)
-        if record.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+        if record.status in {
+            JobStatus.COMPLETED,
+            JobStatus.PARTIAL,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+        }:
             return record.view()
         record.cancel_event.set()
         if record.status == JobStatus.QUEUED:
@@ -125,7 +153,7 @@ class JobManager:
                         self._loop.call_soon_threadsafe(self._apply_progress, job_id, update)
 
                 try:
-                    paths = await asyncio.to_thread(
+                    outcome = await asyncio.to_thread(
                         self.engine.download_job,
                         record.id,
                         record.normalized,
@@ -160,11 +188,20 @@ class JobManager:
                         error_message="任务执行失败，请展开诊断信息或重试",
                     )
                 else:
-                    record.result_paths = paths
+                    record.result_paths = outcome.paths
+                    record.item_results = outcome.item_results
+                    failed_items = sum(
+                        item.status == "failed" for item in outcome.item_results
+                    )
+                    status = (
+                        JobStatus.PARTIAL
+                        if failed_items
+                        else JobStatus.COMPLETED
+                    )
                     self._update_record(
                         record,
-                        status=JobStatus.COMPLETED,
-                        phase="completed",
+                        status=status,
+                        phase=status.value,
                         percent=100.0,
                     )
             finally:
