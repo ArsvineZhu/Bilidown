@@ -69,15 +69,66 @@ shasum -a 256 Bilidown-0.1.1-macos-arm64.app.zip
 
 ## 开发者快速命令
 
-```powershell
-python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
-pnpm --dir frontend install --frozen-lockfile
-.venv\Scripts\python -m pytest
-pnpm --dir frontend test
-pnpm --dir frontend build
+### 环境准备
+
+需要 Python 3.12/3.13、Node.js 22、pnpm。macOS 构建桌面应用还需要 Rust 和 pkg-config：
+
+```bash
+# macOS 安装额外系统依赖
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+brew install pkg-config
 ```
 
-macOS/Linux 将 `.venv\Scripts\python` 替换为 `.venv/bin/python`。完整说明见[开发环境](docs/development.md)和[构建与发布](docs/building-and-releasing.md)。
+### 安装项目依赖
+
+```powershell
+# Windows（标准）
+python -m venv .venv
+.venv\Scripts\python -m pip install -e ".[dev]"
+
+# Windows（uv）
+uv venv
+uv pip install -e ".[dev]"
+```
+
+```bash
+# macOS / Linux（标准）
+python3 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+
+# macOS / Linux（uv）
+uv venv
+uv pip install -e ".[dev]"
+```
+
+```bash
+# 前端（所有平台通用）
+pnpm --dir frontend install --frozen-lockfile
+```
+
+### 运行测试
+
+```bash
+.venv/bin/python -m pytest        # Python 测试
+pnpm --dir frontend typecheck      # TypeScript 类型检查
+pnpm --dir frontend test           # 前端单元测试
+pnpm --dir frontend build          # 前端生产构建
+```
+
+### 构建桌面应用
+
+```powershell
+# Windows
+packaging\prepare-ffmpeg.ps1
+packaging\build-desktop.ps1 -Python .\.venv\Scripts\python.exe
+```
+
+```bash
+# macOS (Apple Silicon)
+bash packaging/prepare-ffmpeg-macos.sh
+PYTHON=.venv/bin/python bash packaging/build-desktop.sh
+```
+
+产物位于 `src-tauri/target/release/bundle/`。完整说明见[开发环境](docs/development.md)和[构建与发布](docs/building-and-releasing.md)。
 
 Bilidown 使用 MIT License；随包 FFmpeg/LAME 的许可证与对应源码信息见 `packaging/THIRD_PARTY_NOTICES.txt` 和 Release 源码归档。

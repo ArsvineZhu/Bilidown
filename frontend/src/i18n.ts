@@ -366,7 +366,7 @@ const resources = {
   },
 } as const;
 
-const storedLanguage = localStorage.getItem("bilidown-language");
+const storedLanguage = typeof localStorage !== "undefined" ? localStorage.getItem("bilidown-language") : null;
 const initialLanguage: SupportedLanguage = storedLanguage === "en-US" ? "en-US" : "zh-CN";
 
 void i18n.use(initReactI18next).init({
