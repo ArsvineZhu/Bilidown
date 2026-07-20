@@ -150,6 +150,7 @@ jobs:
             echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
             echo "BILIDOWN_NOTARIZE=1" >> "$GITHUB_ENV"
           else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
             echo "BILIDOWN_NOTARIZE=0" >> "$GITHUB_ENV"
           fi
       - name: Build native FFmpeg
