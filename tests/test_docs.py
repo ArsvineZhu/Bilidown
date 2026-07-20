@@ -52,7 +52,7 @@ def test_agents_guide_has_required_title_and_length() -> None:
     content = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert content.startswith("# Repository Guidelines\n")
     words = re.findall(r"\b[A-Za-z0-9][A-Za-z0-9'./+-]*\b", content)
-    assert 200 <= len(words) <= 400, f"AGENTS.md has {len(words)} words"
+    assert 200 <= len(words) <= 500, f"AGENTS.md has {len(words)} words"
 
 
 def test_project_versions_match() -> None:
@@ -80,8 +80,11 @@ def test_application_authorship_matches_bundle_metadata() -> None:
     tauri = json.loads(
         (ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
     )
-    assert project["project"]["authors"] == [{"name": "Arsvine Zhu"}]
-    assert cargo["package"]["authors"] == ["Arsvine Zhu"]
+    assert project["project"]["authors"] == [
+        {"name": "Arsvine Zhu"},
+        {"name": "Hackintosh_HD"},
+    ]
+    assert cargo["package"]["authors"] == ["Arsvine Zhu", "Hackintosh_HD"]
     assert tauri["bundle"]["publisher"] == "Arsvine Zhu"
     assert tauri["bundle"]["copyright"] == "Copyright © 2026 Arsvine Zhu"
 

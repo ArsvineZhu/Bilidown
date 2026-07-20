@@ -15,8 +15,9 @@ Bilidown is a local-only Tauri desktop application. It does not bypass DRM, paym
 | Field | Value |
 | --- | --- |
 | Product | Bilidown |
-| Version | 1.0.0 |
+| Version | 1.1.1 |
 | Author and publisher | Arsvine Zhu |
+| Contributor | Hackintosh_HD (GitHub: `zhouyi1227`) |
 | Application identifier | `io.github.arsvinezhu.bilidown` |
 | Copyright | Copyright © 2026 Arsvine Zhu |
 | License | MIT (FFmpeg/LAME/yt-dlp retain their own licenses) |

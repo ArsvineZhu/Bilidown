@@ -1,8 +1,9 @@
 Bilidown Windows x64 Portable
 ==============================
 
-版本：1.0.0
+版本：1.1.1
 作者与发布者：Arsvine Zhu
+贡献者：Hackintosh_HD（GitHub: zhouyi1227）
 版权：Copyright © 2026 Arsvine Zhu
 
 使用方式
