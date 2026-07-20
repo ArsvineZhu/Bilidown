@@ -7,10 +7,10 @@ mod idle;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             desktop::show_main_window(app);
         }))
@@ -46,6 +46,21 @@ pub fn run() {
             idle::set_active_jobs,
             idle::set_idle_timeout,
         ])
-        .run(tauri::generate_context!())
-        .unwrap_or_else(|error| eprintln!("Bilidown desktop runtime failed: {error}"));
+        .build(tauri::generate_context!());
+    let app = match builder
+    {
+        Ok(app) => app,
+        Err(error) => {
+            eprintln!("Bilidown desktop runtime failed: {error}");
+            return;
+        }
+    };
+
+    app.run(|app_handle, event| {
+        if let RunEvent::Reopen { has_visible_windows, .. } = event
+            && !has_visible_windows
+        {
+            desktop::show_main_window(app_handle);
+        }
+    });
 }
