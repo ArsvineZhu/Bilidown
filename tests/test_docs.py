@@ -63,9 +63,46 @@ def test_project_versions_match() -> None:
     tauri = json.loads(
         (ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
     )
+    frontend = json.loads(
+        (ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
+    )
     assert project["project"]["version"] == bilidown.__version__
     assert cargo["package"]["version"] == bilidown.__version__
     assert tauri["version"] == bilidown.__version__
+    assert frontend["version"] == bilidown.__version__
+
+
+def test_application_authorship_matches_bundle_metadata() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    cargo = tomllib.loads(
+        (ROOT / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8")
+    )
+    tauri = json.loads(
+        (ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8")
+    )
+    assert project["project"]["authors"] == [{"name": "Arsvine Zhu"}]
+    assert cargo["package"]["authors"] == ["Arsvine Zhu"]
+    assert tauri["bundle"]["publisher"] == "Arsvine Zhu"
+    assert tauri["bundle"]["copyright"] == "Copyright © 2026 Arsvine Zhu"
+
+
+def test_windows_portable_build_contract() -> None:
+    script = (ROOT / "packaging" / "build-portable.ps1").read_text(encoding="utf-8")
+    readme = (ROOT / "packaging" / "PORTABLE_README_zh-CN.txt").read_text(
+        encoding="utf-8"
+    )
+    assert '"Bilidown-$version-windows-x64"' in script
+    assert "$portableName-portable.zip" in script
+    for entry in (
+        "Bilidown.exe",
+        "bilidown-backend.exe",
+        "README.txt",
+        "SHA256SUMS.txt",
+        "THIRD_PARTY_NOTICES.txt",
+        "FFMPEG_SOURCE.txt",
+    ):
+        assert entry in script
+    assert "WebView2 Runtime" in readme
 
 
 def test_github_workflows_are_valid_yaml() -> None:

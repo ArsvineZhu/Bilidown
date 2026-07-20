@@ -6,6 +6,11 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Ffmpeg = Join-Path $Root ".tools\ffmpeg\bin\ffmpeg.exe"
 $Ffprobe = Join-Path $Root ".tools\ffmpeg\bin\ffprobe.exe"
+$CargoBin = Join-Path $HOME ".cargo\bin"
+
+if ((Test-Path -LiteralPath (Join-Path $CargoBin "cargo.exe") -PathType Leaf) -and ($env:Path -notlike "*$CargoBin*")) {
+    $env:Path = "$CargoBin;$env:Path"
+}
 
 if (-not (Test-Path -LiteralPath $Ffmpeg) -or -not (Test-Path -LiteralPath $Ffprobe)) {
     throw "Run packaging\prepare-ffmpeg.ps1 before building."

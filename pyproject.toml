@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bilidown-local"
-version = "0.1.1"
-description = "Local-only Bilibili UGC downloader"
+version = "1.0.0"
+description = "Local-only Bilibili media downloader and live recorder"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = {text = "MIT"}
+authors = [{name = "Arsvine Zhu"}]
 dependencies = [
   "fastapi==0.116.1",
   "httpx==0.28.1",

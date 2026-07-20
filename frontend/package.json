@@ -1,7 +1,7 @@
 {
   "name": "bilidown-frontend",
   "private": true,
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -9,6 +9,7 @@
     "desktop": "cd ../src-tauri && node ../frontend/node_modules/@tauri-apps/cli/tauri.js",
     "desktop:dev": "cd ../src-tauri && node ../frontend/node_modules/@tauri-apps/cli/tauri.js dev",
     "desktop:build": "cd ../src-tauri && node ../frontend/node_modules/@tauri-apps/cli/tauri.js build",
+    "desktop:build:portable": "cd ../src-tauri && node ../frontend/node_modules/@tauri-apps/cli/tauri.js build --no-bundle",
     "schema:generate": "node ../packaging/generate-openapi.mjs && openapi-typescript openapi.json -o src/generated/api-schema.ts",
     "schema:check": "pnpm schema:generate && git diff --exit-code -- openapi.json src/generated/api-schema.ts",
     "test": "vitest run",

@@ -1,8 +1,8 @@
 [package]
 name = "bilidown-desktop"
-version = "0.1.1"
+version = "1.0.0"
 description = "Bilidown desktop shell"
-authors = ["Bilidown contributors"]
+authors = ["Arsvine Zhu"]
 edition = "2024"
 rust-version = "1.85"
 

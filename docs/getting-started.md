@@ -2,7 +2,7 @@
 
 ## 系统要求
 
-- Windows 10 22H2 或 Windows 11，x64。
+- Windows 10 22H2 或 Windows 11，x64；需要 Microsoft Edge WebView2 Runtime（通常已经随系统安装）。
 - macOS 13 Ventura 或更高版本，Apple Silicon（M 系列芯片）。
 - 约 500 MiB 可用空间，以及保存媒体所需的额外空间。
 
@@ -10,7 +10,7 @@
 
 ## 选择并启动应用
 
-按 [README](../README.md#1-从-releases-下载) 选择架构并校验 SHA-256。必须先完整解压：Windows 保留整个 `Bilidown` 文件夹；macOS 保留完整 `Bilidown.app`。
+按 [README](../README.md#1-从-releases-下载) 选择架构并校验 SHA-256。Windows 可以安装 `.msi`/NSIS `.exe`，或完整解压 `Bilidown-<版本>-windows-x64-portable.zip` 后运行 `Bilidown.exe`。便携版必须保留同目录的 `bilidown-backend.exe`、许可证说明和 FFmpeg 来源说明；不要从压缩包预览窗口直接运行。macOS 保留完整 `Bilidown.app`。
 
 启动后会显示原生桌面窗口，内部后端使用随机本地端口并仅监听 `127.0.0.1`。关闭主窗口会隐藏到系统托盘，而不是中断下载。托盘菜单可重新打开窗口或彻底退出。
 
@@ -42,3 +42,7 @@
 ## 结束应用
 
 关闭主窗口只会隐藏到系统托盘。默认空闲 30 分钟自动退出，可在托盘选择 15/30/60 分钟或关闭自动退出；退出前 5 分钟会提醒。普通任务或直播录制活动期间不会自动退出。彻底退出会清理内存 Cookie、任务记录和未保留的临时文件。
+
+## 便携版说明
+
+Windows 便携版不写注册表、不安装服务或开机启动项；下载目录仍由你在界面中选择。如果双击后没有显示窗口，请先安装 Microsoft Edge WebView2 Evergreen Runtime，再重试。解压目录可以移动，但不能只复制 `Bilidown.exe`，必须一起保留所有文件。
